@@ -93,7 +93,6 @@ async function DinzBotzInd() {
 const DinzBotz = makeWASocket({
       logger: pino({ level: "silent" }),
       printQRInTerminal: false,
-      auth: state,
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 0,
       keepAliveIntervalMs: 10000,
@@ -103,6 +102,8 @@ const DinzBotz = makeWASocket({
       syncFullHistory: true,
       markOnlineOnConnect: true,
       browser: ["Ubuntu", "Chrome", "20.0.04"],
+      retryRequestDelayMs: 10,
+      maxMsgRetryCount: 15,
 
       patchMessageBeforeSending: (message) => {
             const requiresPatch = !!(
@@ -129,14 +130,6 @@ const DinzBotz = makeWASocket({
          creds: state.creds,
          keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" }).child({ level: "fatal" })),
       },
-connectTimeoutMs: 60000,
-defaultQueryTimeoutMs: 0,
-keepAliveIntervalMs: 10000,
-emitOwnEvents: true,
-fireInitQueries: true,
-generateHighQualityLinkPreview: true,
-syncFullHistory: true,
-markOnlineOnConnect: true,
       getMessage: async (key) => {
             if (store) {
                 const msg = await store.loadMessage(key.remoteJid, key.id)
@@ -147,7 +140,6 @@ markOnlineOnConnect: true,
             }
         },
       msgRetryCounterCache, // Resolve waiting messages
-      defaultQueryTimeoutMs: undefined, // for this issues https://github.com/WhiskeySockets/Baileys/issues/276
    })
    
 const _0x27e29c = _0x47fd;
@@ -572,11 +564,6 @@ DinzBotz.ev.on("messages.upsert", async (chatUpdate) => {
     // Removed strict LID filtering here because we now handle LID mapping in smsg/Serialize
     const originJid = kay.key.participant || kay.key.remoteJid || '';
     if (originJid.includes('status@broadcast')) return
-
-    // 3. Cek Timestamp (Abaikan pesan lama/history sync > 2 menit)
-    if (kay.messageTimestamp && (Date.now() - (kay.messageTimestamp * 1000) > 120000)) {
-        return;
-    }
 
     if (!kay.message) return
 
