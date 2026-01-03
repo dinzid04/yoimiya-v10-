@@ -77,6 +77,26 @@ const useMobile = process.argv.includes("--mobile")
 const owner = JSON.parse(fs.readFileSync('./PREMIUM/owner.json'))
 
 const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) })
+
+// === TAMBAHAN PEMBERSIH RAM OTOMATIS ===
+setInterval(() => {
+    // FIX: Cek metode yang tersedia untuk mengambil data chat
+    const chats = store.chats.all ? store.chats.all() : Object.values(store.chats);
+
+    chats.forEach((chat) => {
+        // Pastikan chat dan messages ada isinya
+        if (chat && chat.messages) {
+            // Jika pesan di dalam chat lebih dari 50, hapus sisanya
+            if (chat.messages.length > 50) {
+                chat.messages = chat.messages.slice(-50);
+            }
+        }
+    });
+
+    // Opsional: Log untuk memantau (bisa dihapus jika mengganggu)
+   console.log('🧹 Membersihkan sampah pesan di RAM...');
+}, 10 * 60 * 1000); // Jalan setiap 10 Menit
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
 const question = (text) => new Promise((resolve) => rl.question(text, resolve))
