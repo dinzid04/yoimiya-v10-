@@ -1,0 +1,37 @@
+[
+  {
+    "jid": "628990936282@s.whatsapp.net",
+    "db": [
+      {
+        "nama": "#setleft",
+        "count": 1
+      },
+      {
+        "nama": "#mute",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "jid": "6283159227378@s.whatsapp.net",
+    "db": [
+      {
+        "nama": "#autoaigrup",
+        "count": 2
+      },
+      {
+        "nama": "casino",
+        "count": 4
+      }
+    ]
+  },
+  {
+    "jid": "6283141883691@s.whatsapp.net",
+    "db": [
+      {
+        "nama": "#mute",
+        "count": 1
+      }
+    ]
+  }
+]
