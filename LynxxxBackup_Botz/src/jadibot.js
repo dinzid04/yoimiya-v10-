@@ -1,0 +1,172 @@
+require('../settings');
+const fs = require('fs');
+const pino = require('pino');
+const path = require('path');
+const { Boom } = require('@hapi/boom');
+const NodeCache = require('node-cache');
+const { exec, spawn, execSync } = require('child_process');
+const { parsePhoneNumber } = require('awesome-phonenumber');
+const { default: WAConnection, useMultiFileAuthState, Browsers, DisconnectReason, makeInMemoryStore, makeCacheableSignalKeyStore, fetchLatestBaileysVersion, proto, getAggregateVotesInPollMessage } = require('@whiskeysockets/baileys');
+
+const { GroupUpdate, GroupParticipantsUpdate, MessagesUpsert, Solving } = require('./message');
+
+const client = {};
+
+const msgRetryCounterCache = new NodeCache();
+const store = makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) })
+
+async function JadiBot(conn, from, m) {
+	async function startJadiBot() {
+		try {
+			const { state, saveCreds } = await useMultiFileAuthState(`./database/jadibot/${from}`);
+			const { version, isLatest } = await fetchLatestBaileysVersion();
+			const level = pino({ level: 'silent' })
+			
+			const getMessage = async (key) => {
+				if (store) {
+					const msg = await store.loadMessage(key.remoteJid, key.id);
+					return msg?.message || ''
+				}
+				return {
+					conversation: 'Halo Saya Adalah Bot'
+				}
+			}
+			
+			client[from] = WAConnection({
+				isLatest,
+				logger: level,
+				getMessage,
+				syncFullHistory: true,
+				maxMsgRetryCount: 15,
+				msgRetryCounterCache,
+				retryRequestDelayMs: 10,
+				defaultQueryTimeoutMs: 0,
+				printQRInTerminal: false,
+				browser: Browsers.ubuntu('Chrome'),
+				transactionOpts: {
+					maxCommitRetries: 10,
+					delayBetweenTriesMs: 10,
+				},
+				appStateMacVerification: {
+					patch: true,
+					snapshot: true,
+				},
+				auth: {
+					creds: state.creds,
+					keys: makeCacheableSignalKeyStore(state.keys, level),
+				},
+			})
+			
+			if (!client[from].authState.creds.registered) {
+    let phoneNumber = from.replace(/[^0-9]/g, '')
+    setTimeout(async () => {
+        // Baris exec rm -rf DIHAPUS disini.
+        let code = await client[from].requestPairingCode(phoneNumber, 'DIKZGANZ');
+        m.reply(`Your Pairing Code : ${code?.match(/.{1,4}/g)?.join('-') || code}\nUntuk keluar sesi ketik .stopjadibot`);
+    }, 3000)
+}
+
+			
+			store.bind(client[from].ev)
+			
+			await Solving(client[from], store)
+			
+			client[from].ev.on('creds.update', saveCreds)
+			
+			client[from].ev.on('connection.update', async (update) => {
+				const { connection, lastDisconnect, receivedPendingNotifications } = update
+				if (connection === 'close') {
+    const reason = new Boom(lastDisconnect?.error)?.output.statusCode
+    if ([DisconnectReason.connectionLost, DisconnectReason.connectionClosed, DisconnectReason.restartRequired, DisconnectReason.timedOut, DisconnectReason.badSession, DisconnectReason.connectionReplaced].includes(reason)) {
+        // HANYA Reconnect jika sebelumnya sudah berhasil login (registered)
+        if (client[from].authState?.creds?.registered) {
+            JadiBot(conn, from, m)
+        } else {
+            // Jika belum login tapi koneksi putus, matikan sesi agar tidak spam kode
+            console.log(`Connection closed before registration for ${from}`)
+            StopJadiBot(conn, from, m)
+        }
+    } else if (reason === DisconnectReason.loggedOut) {
+        // ... kode sisanya biarkan sama ...
+
+						m.reply('Scan again and Run...');
+						StopJadiBot(conn, from, m)
+					} else if (reason === DisconnectReason.Multidevicemismatch) {
+						m.reply('Scan again...');
+						StopJadiBot(conn, from, m)
+					} else {
+						m.reply('📛 Anda Sudah Tidak Lagi Menjadi Bot!')
+					}
+				}
+				if (connection == 'open') {
+    await client[from].sendMessage('6285810287828@s.whatsapp.net', { 
+        text: `🔰 *\`𝗟𝘆𝗻𝘅𝘅𝘅 𝗕𝗼𝘁𝘇 𝗖𝗼𝗻𝘁𝗿𝗼𝗹𝗹𝗲𝗿\`* 🔰\n\n╭╌╌╌╌╌╌╌╌╌╌╌╌╌╌✦\n╎ Successfully Become a Bot!\n╎ © 2025 - DhikzxDev\n╰╌╌╌╌╌╌╌╌╌╌╌╌╌╌✦` 
+    });
+    m.reply(`✅ Anda Telah Menjadi Bot. Silakan Gunakan Bot Sewajarnya. Dan Pastikan Tidak Melakukan Spam Dll, Karena Bot Terhubung Dengan Bot Pusat!\n\nJika Ingin Berhenti Jadibot Silakan Ketik ".stopjadibot"`);
+					let botNumber = await client[from].decodeJid(client[from].user.id);
+					if (db.set[botNumber] && !db.set[botNumber]?.join) {
+						db.set[botNumber].original = false
+						if (global.my.gc.length > 0 && global.my.gc.includes('whatsapp.com')) {
+							await client[from].groupAcceptInvite(global.my.gc?.split('https://chat.whatsapp.com/')[1]).then(async grupnya => {
+								await client[from].chatModify({ archive: true }, grupnya, [])
+								db.set[botNumber].join = true
+							});
+						}
+					}
+				}
+				if (receivedPendingNotifications == 'true') {
+					client[from].ev.flush()
+				}
+			});
+			
+			client[from].ev.on('contacts.update', (update) => {
+				for (let contact of update) {
+					let id = client[from].decodeJid(contact.id)
+					if (store && store.contacts) store.contacts[id] = { id, name: contact.notify }
+				}
+			}) 
+			
+			client[from].ev.on('groups.update', async (update) => {
+				await GroupUpdate(client[from], update, store);
+			});
+			
+			client[from].ev.on('group-participants.update', async (update) => {
+				await GroupParticipantsUpdate(client[from], update, store);
+			});
+			
+			client[from].ev.on('messages.upsert', async (message) => {
+				await MessagesUpsert(client[from], message, store);
+			});
+		
+			return client[from]
+		} catch (e) {
+			console.log('Error di jadibot : ', e)
+		}
+	}
+	return startJadiBot()
+}
+
+async function StopJadiBot(conn, from, m) {
+	if (!Object.keys(client).includes(from)) {
+		return conn.sendMessage(m.chat, { text: 'Anda Tidak Sedang jadibot!' }, { quoted: m })
+	}
+	try {
+		client[from].end('Stop')
+		client[from].ev.removeAllListeners()
+	} catch (e) {
+		console.log('Errornya di stopjadibot : ', e)
+	}
+	delete client[from]
+	exec(`rm -rf ./database/jadibot/${from}`)
+	return m.reply('Sukses Keluar Dari Sessi Jadi bot')
+}
+
+async function ListJadiBot(conn, m) {
+	let teks = 'List Jadi Bot :\n\n'
+	for (let jadibot of Object.values(client)) {
+		teks += `- @${conn.decodeJid(jadibot.user.id).split('@')[0]}\n`
+	}
+	return m.reply(teks)
+}
+
+module.exports = { JadiBot, StopJadiBot, ListJadiBot }
