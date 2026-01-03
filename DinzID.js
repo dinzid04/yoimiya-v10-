@@ -507,6 +507,10 @@ const checkIsSewa = (jid) => {
     return db.some(x => x.id === jid);
 };
 
+// [OPTIMIZATION] Cache sewa data
+let cachedDbSewa = null;
+let lastSewaFetch = 0;
+
 // 4. MESIN CEK SEWA (TANPA INTERVAL)
 // Fungsi ini akan dipanggil setiap ada chat, tapi dieksekusi cuma 1 menit sekali
 const checkSewaSafe = async (dinz) => {
@@ -518,7 +522,15 @@ const checkSewaSafe = async (dinz) => {
     
     // B. Mulai Pengecekan
     try {
-        let dbSewa = readDbSewa();
+        // Cache sewa file read
+        let dbSewa;
+        if (cachedDbSewa && Date.now() - lastSewaFetch < 60000) {
+             dbSewa = cachedDbSewa;
+        } else {
+             dbSewa = readDbSewa();
+             cachedDbSewa = dbSewa;
+             lastSewaFetch = Date.now();
+        }
         let now = Date.now();
         let isModified = false;
 
@@ -927,8 +939,17 @@ module.exports = DinzBotz = async (DinzBotz, m, chatUpdate, store) => {
     if (!fs.existsSync(dirDB)) fs.mkdirSync(dirDB);
     if (!fs.existsSync(blacklistPath)) fs.writeFileSync(blacklistPath, '[]');
 
+    // [OPTIMIZATION] Cache blacklist
+    let cachedBlacklist = null;
+    let lastBlacklistUpdate = 0;
+
     function loadBlacklist() {
-      return JSON.parse(fs.readFileSync(blacklistPath));
+        if (cachedBlacklist && Date.now() - lastBlacklistUpdate < 60000) { // Refresh every 1 min or rely on watch
+            return cachedBlacklist;
+        }
+        cachedBlacklist = JSON.parse(fs.readFileSync(blacklistPath));
+        lastBlacklistUpdate = Date.now();
+        return cachedBlacklist;
     }
 
     if (m.message && m.key.remoteJid.endsWith('@g.us')) {
@@ -957,13 +978,18 @@ const isXeonMedia = m.mtype;
 
 const rungo = true;
 
+// [OPTIMIZATION] Cache file content once
+let cachedDinzIDContent = '';
+try {
+    cachedDinzIDContent = fs.readFileSync('./DinzID.js').toString();
+} catch (e) {
+    console.error("Failed to cache DinzID.js", e);
+}
+
 // Fungsi untuk menghitung total fitur (case)
 const DinzIDtotalpitur = () => {
-  // Menentukan nama file target: './DinzID.js'
-  const pathFile = './DinzID.js';
-  
-  // Membaca file tersebut secara sinkronus dan mengubahnya menjadi string
-  var fileContent = fs.readFileSync(pathFile).toString();
+  // Gunakan cache
+  var fileContent = cachedDinzIDContent || fs.readFileSync('./DinzID.js').toString();
   
   // Mencari semua kemunculan text "case '" menggunakan Regex untuk menghitung jumlah fitur
   var totalCase = (fileContent.match(/case '/g) || []).length;
@@ -1134,7 +1160,9 @@ const DinzIDtotalpitur = () => {
           };
           return _0xa6f6();
         }
-        const fileContent = fs[_0x26fd5d(0x1a3) + 'nc'](_0x26fd5d(0x1a0) + 's')[_0x26fd5d(0x1a4)]();
+        // [OPTIMIZATION] Use cached content
+        const fileContent = cachedDinzIDContent || fs.readFileSync('./DinzID.js').toString();
+        // const fileContent = fs[_0x26fd5d(0x1a3) + 'nc'](_0x26fd5d(0x1a0) + 's')[_0x26fd5d(0x1a4)]();
         let caseContent = fileContent.split(`case '${cases}'`);
         if (caseContent.length === 1) {
           caseContent = fileContent.split(`case "${cases}"`);
@@ -1202,13 +1230,24 @@ const DinzIDtotalpitur = () => {
           };
           return _0xb3e1();
         }
-        const regex = /case\s+['"]([^'"]+)['"]:/g;
-        var matches = [];
-        var match;
-        while ((match = regex.exec(code))) {
-          matches.push(match[1]);
+
+        // [OPTIMIZATION] Use cached help if available
+        let help;
+        if (cachedHelp && cachedHelp.length > 0) {
+            help = cachedHelp;
+        } else {
+             // Fallback
+             // const code = fs.readFileSync('./DinzID.js', 'utf8');
+             const code = cachedDinzIDContent || fs.readFileSync('./DinzID.js').toString();
+             const regex = /case\s+['"]([^'"]+)['"]:/g;
+             var matches = [];
+             var match;
+             while ((match = regex.exec(code))) {
+               matches.push(match[1]);
+             }
+             help = Object.values(matches).flatMap(v => v ?? []).map(entry => entry.trim().split(' ')[0].toLowerCase()).filter(Boolean);
+             cachedHelp = help; // Populate cache
         }
-        const help = Object.values(matches).flatMap(v => v ?? []).map(entry => entry.trim().split(' ')[0].toLowerCase()).filter(Boolean);
         if (!help.includes(our) && !budy.startsWith('$ ') && !budy.startsWith('> ')) {
           mean = didyoumean(our, help);
           let sim = similarity(our, mean);
@@ -2539,11 +2578,27 @@ if (!fs.existsSync(dbChatPath)) {
     fs.writeFileSync(dbChatPath, JSON.stringify({}));
 }
 
+// [OPTIMIZATION] Cache chat stats
+if (!global.cachedChatStats) {
+    try {
+        global.cachedChatStats = JSON.parse(fs.readFileSync(dbChatPath));
+    } catch {
+        global.cachedChatStats = {};
+    }
+    // Auto save every 30 seconds if modified
+    setInterval(() => {
+        if (global.chatStatsDirty) {
+            fs.writeFileSync(dbChatPath, JSON.stringify(global.cachedChatStats));
+            global.chatStatsDirty = false;
+        }
+    }, 30000);
+}
+
 // 2. Filter: Hanya di Grup & BUKAN Command
-// Jika user mengetik command (awalan prefix), tidak akan dihitung
 if (m.isGroup && !isCmd) {
     try {
-        let dbChat = JSON.parse(fs.readFileSync(dbChatPath));
+        // Use cached stats
+        let dbChat = global.cachedChatStats;
         
         // Inisialisasi Object
         if (!dbChat[m.chat]) dbChat[m.chat] = {};
@@ -2552,8 +2607,8 @@ if (m.isGroup && !isCmd) {
         // Tambah Point
         dbChat[m.chat][m.sender] += 1;
         
-        // Simpan
-        fs.writeFileSync(dbChatPath, JSON.stringify(dbChat));
+        // Mark as dirty
+        global.chatStatsDirty = true;
     } catch (err) {
         console.log("Error saving chat stats:", err);
     }
