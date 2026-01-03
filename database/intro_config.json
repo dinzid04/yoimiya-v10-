@@ -1,0 +1,22 @@
+{
+  "fields": [
+    {
+      "name": "nama",
+      "display": "📛 Nama"
+    },
+    {
+      "name": "kota",
+      "display": "🏙️ Kota"
+    },
+    {
+      "name": "umur",
+      "display": "🎂 Umur"
+    },
+    {
+      "name": "hobi",
+      "display": "🎮 Hobi"
+    }
+  ],
+  "example": "Budi | Surabaya | 23 | Main Game",
+  "rules": "Harap isi semua data dengan benar"
+}
