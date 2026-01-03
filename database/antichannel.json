@@ -1,0 +1,24 @@
+{
+  "120363335406266355@g.us": {
+    "active": false,
+    "warnings": {
+      "6282231553873@s.whatsapp.net": 1,
+      "6282138468554@s.whatsapp.net": 1
+    },
+    "antichannel": true
+  },
+  "120363383983744945@g.us": {
+    "active": false,
+    "warnings": {
+      "6283159227378@s.whatsapp.net": 1
+    },
+    "antichannel": true
+  },
+  "120363418004895207@g.us": {
+    "active": false,
+    "warnings": {
+      "628990936282@s.whatsapp.net": 1
+    },
+    "antichannel": true
+  }
+}
