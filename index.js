@@ -100,10 +100,24 @@ setInterval(() => {
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
 const question = (text) => new Promise((resolve) => rl.question(text, resolve))
-require('./DinzID.js')
-nocache('../DinzID.js', module => console.log(color('[ CHANGE ]', 'green'), color(`'${module}'`, 'green'), 'Updated'))
+const DinzID = require('./DinzID.js')
+// require('./DinzID.js')
+// nocache('../DinzID.js', module => console.log(color('[ CHANGE ]', 'green'), color(`'${module}'`, 'green'), 'Updated'))
 require('./index.js')
 nocache('../index.js', module => console.log(color('[ CHANGE ]', 'green'), color(`'${module}'`, 'green'), 'Updated'))
+
+// === TAMBAHAN PEMBERSIH RAM OTOMATIS ===
+setInterval(() => {
+    // FIX: Clean memory store messages
+    if (store.messages) {
+        const messageKeys = Object.keys(store.messages);
+        messageKeys.forEach((key) => {
+            if (store.messages[key].length > 50) {
+                store.messages[key] = store.messages[key].slice(-50);
+            }
+        });
+    }
+}, 10 * 60 * 1000); // Jalan setiap 10 Menit
 
 async function DinzBotzInd() {
 	const {  saveCreds, state } = await useMultiFileAuthState(`./${sessionName}`)
@@ -604,7 +618,7 @@ DinzBotz.ev.on("messages.upsert", async (chatUpdate) => {
     if (kay.key.id.startsWith('BAE5') && kay.key.id.length === 16) return
 
     const m = smsg(DinzBotz, kay, store)
-    require('./DinzID')(DinzBotz, m, chatUpdate, store)
+    await DinzID(DinzBotz, m, chatUpdate, store)
 } catch (err) {
 console.log(err)}})
 
